@@ -29,6 +29,194 @@ require_target() {
     [ -n "$2" ] || error "$1 requires a target directory"
 }
 
+init_repository() {
+    target=$1
+    files='AGENTS.md .codex/project.yml .github/workflows/cpp-ci.yml .github/pull_request_template.md docs/agent-workflow.md scripts/validate-cpp.sh'
+
+    mkdir -p "$target"
+    cd "$target"
+
+    if [ "${CAF_FORCE-0}" != 1 ]; then
+        for file in $files; do
+            if [ -e "$file" ]; then
+                error "refusing to overwrite $file (set CAF_FORCE=1 to overwrite)"
+            fi
+        done
+    fi
+
+    mkdir -p .codex .github/workflows docs scripts
+
+    cat > AGENTS.md <<'EOF'
+# C++ Repository Agent Instructions
+
+This repository follows the C++ Agent Forge workflow.
+
+- Use C++17 and CMake 3.20 or newer.
+- Configure and build out of tree; run tests with CTest.
+- Treat `src/**`, `include/**`, `tests/**`, and build configuration as owned
+  repository paths unless a task explicitly narrows the scope.
+- Enable `-Wall -Wextra -Wpedantic` for GCC and Clang.
+- Run clang-format on changed C++ files. Use clang-tidy when available.
+- Exercise AddressSanitizer and UndefinedBehaviorSanitizer for relevant code.
+- Avoid unbounded loops in test paths and document platform-specific behavior.
+- Never persist local absolute paths, credentials, tokens, or private data.
+
+Every task must include `task_id`, `pr_title`, `brief`, `allowed_paths`,
+`model`, and `reasoning_effort`. Keep the canonical PLAN, IMPLEMENT, and REVIEW
+names synchronized with the task metadata.
+EOF
+
+    cat > .codex/project.yml <<'EOF'
+# Replace placeholders with consumer-repository values.
+task_id: replace-with-task-id
+pr_number: null
+pr_title: "Replace with a short, action-oriented PR title"
+brief: "Replace with a one-sentence description of the intended change"
+repository: OWNER/REPOSITORY
+base_branch: main
+branch: codex/task-name
+allowed_paths:
+  - src/**
+  - include/**
+  - tests/**
+dependencies: []
+model: gpt-5.6-terra
+reasoning_effort: medium
+standard: c++17
+cmake_minimum: "3.20"
+configure_command: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+build_command: cmake --build build --parallel
+test_command: ctest --test-dir build --output-on-failure
+format_command: clang-format --dry-run --Werror
+sanitizer_command: cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+status: queued
+EOF
+
+    cat > .github/workflows/cpp-ci.yml <<'EOF'
+name: C++ CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select compiler
+        run: |
+          if [ "${{ matrix.compiler }}" = clang ]; then
+            echo "CC=clang" >> "$GITHUB_ENV"
+            echo "CXX=clang++" >> "$GITHUB_ENV"
+          else
+            echo "CC=gcc" >> "$GITHUB_ENV"
+            echo "CXX=g++" >> "$GITHUB_ENV"
+          fi
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Format check
+        run: clang-format --dry-run --Werror $(find . -type f \( -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \))
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure with sanitizers
+        run: cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+      - name: Build
+        run: cmake --build build-asan --parallel
+      - name: Test
+        run: ctest --test-dir build-asan --output-on-failure
+EOF
+
+    cat > .github/pull_request_template.md <<'EOF'
+## Summary
+
+- PR title: <!-- keep this synchronized with task metadata -->
+- Brief: <!-- one sentence -->
+
+## Scope
+
+- Allowed paths:
+- Out-of-scope paths:
+
+## Validation
+
+- [ ] CMake configure and build
+- [ ] CTest
+- [ ] clang-format
+- [ ] clang-tidy, when available
+- [ ] AddressSanitizer and UndefinedBehaviorSanitizer, when relevant
+
+## Risk and review
+
+- [ ] No absolute user paths, credentials, tokens, or private data added
+- [ ] Ownership and synchronization implications documented
+- [ ] Platform-specific behavior documented
+- [ ] Required reviewers identified
+EOF
+
+    cat > docs/agent-workflow.md <<'EOF'
+# Agent Workflow
+
+Use one task owner, one branch, one worktree, and one pull request per task.
+Keep write agents in isolated worktrees and serialize tasks with overlapping
+path ownership.
+
+## Task identity
+
+Record `task_id`, `pr_title`, `brief`, `repository`, `base_branch`, `branch`,
+and `allowed_paths`, together with the selected `model` and
+`reasoning_effort`.
+
+Use these canonical names:
+
+- `PLAN - <initiative> - <brief>`
+- `IMPLEMENT - PR #<number> - <pr-title>`
+- `REVIEW - PR #<number> - <pr-title>`
+
+Begin every session with the PR number and title, brief, scope, branch, and
+repository. Do not put local absolute paths, usernames, tokens, or private
+repository data in names or persisted metadata.
+
+## Execution
+
+The planner produces acceptance criteria, dependencies, owned paths, commands,
+and risks. The implementer changes only assigned paths and reports validation.
+CI runs the CMake, CTest, formatting, and sanitizer checks. The reviewer reads
+the complete diff and CI results, then reports actionable findings. Human
+approval is required before merging.
+EOF
+
+    cat > scripts/validate-cpp.sh <<'EOF'
+#!/bin/sh
+
+set -eu
+
+build_dir=${CAF_BUILD_DIR-build}
+cmake -S . -B "$build_dir" -DCMAKE_BUILD_TYPE=Debug
+cmake --build "$build_dir" --parallel
+ctest --test-dir "$build_dir" --output-on-failure
+EOF
+    chmod +x scripts/validate-cpp.sh
+
+    for file in $files; do
+        printf 'generated %s\n' "$file"
+    done
+    printf '%s\n' 'Next steps:'
+    printf '%s\n' '  1. Replace placeholders in .codex/project.yml.'
+    printf '%s\n' '  2. Add project-specific instructions to AGENTS.md.'
+    printf '%s\n' '  3. Run cpp-agent-forge check .'
+}
+
 command=${1-help}
 
 case "$command" in
@@ -39,8 +227,12 @@ case "$command" in
     init|check)
         require_target "$command" "${2-}"
         [ "$#" -eq 2 ] || error "$command accepts exactly one target directory"
-        printf '%s: %s is not available in this checkpoint\n' "$program" "$command" >&2
-        exit 3
+        if [ "$command" = init ]; then
+            init_repository "$2"
+        else
+            printf '%s: check is not available in this checkpoint\n' "$program" >&2
+            exit 3
+        fi
         ;;
     *)
         error "unknown command: $command"
