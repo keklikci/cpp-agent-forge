@@ -1,0 +1,48 @@
+#!/bin/sh
+
+set -eu
+
+program=cpp-agent-forge
+
+usage() {
+    cat <<'EOF'
+Usage:
+  cpp-agent-forge init <target-directory>
+  cpp-agent-forge check <target-directory>
+  cpp-agent-forge help
+
+Commands:
+  init    Generate the CAF files in a target C++ repository.
+  check   Validate CAF files in a target C++ repository.
+  help    Show this help text.
+EOF
+}
+
+error() {
+    printf '%s: %s\n' "$program" "$1" >&2
+    printf '%s\n' "Try '$program help' for usage." >&2
+    exit 2
+}
+
+require_target() {
+    [ "$#" -eq 2 ] || error "$1 requires a target directory"
+    [ -n "$2" ] || error "$1 requires a target directory"
+}
+
+command=${1-help}
+
+case "$command" in
+    help|-h|--help)
+        [ "$#" -eq 1 ] || error "help does not accept arguments"
+        usage
+        ;;
+    init|check)
+        require_target "$command" "${2-}"
+        [ "$#" -eq 2 ] || error "$command accepts exactly one target directory"
+        printf '%s: %s is not available in this checkpoint\n' "$program" "$command" >&2
+        exit 3
+        ;;
+    *)
+        error "unknown command: $command"
+        ;;
+esac
