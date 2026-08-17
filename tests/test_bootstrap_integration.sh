@@ -29,7 +29,7 @@ EOF
 
 $cli init "$target" >/dev/null
 
-expected_files='AGENTS.md .codex/project.yml .github/workflows/cpp-ci.yml .github/pull_request_template.md docs/agent-workflow.md scripts/validate-cpp.sh'
+expected_files='AGENTS.md .codex/project.yml .codex/orchestration.yml .github/workflows/cpp-ci.yml .github/pull_request_template.md docs/agent-workflow.md docs/agent-orchestration.md scripts/validate-cpp.sh scripts/caf-worktree.sh'
 for file in $expected_files; do
     [ -f "$target/$file" ] || {
         printf 'integration fixture missing: %s\n' "$file" >&2
@@ -64,5 +64,7 @@ grep -F 'IMPLEMENT - PR #<number> - <pr-title>' "$target/docs/agent-workflow.md"
 grep -F 'REVIEW - PR #<number> - <pr-title>' "$target/docs/agent-workflow.md" >/dev/null
 grep -F 'model: gpt-5.6-terra' "$target/.codex/project.yml" >/dev/null
 grep -F 'reasoning_effort: medium' "$target/.codex/project.yml" >/dev/null
+grep -F 'max_parallel_tasks: 4' "$target/.codex/orchestration.yml" >/dev/null
+grep -F 'one task manifest and PR per feature' "$target/docs/agent-orchestration.md" >/dev/null
 
 printf '%s\n' 'Bootstrap integration tests passed.'

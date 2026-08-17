@@ -33,10 +33,12 @@ The bootstrap CLI generates:
 
 - `AGENTS.md`: C++ repository instructions.
 - `.codex/project.yml`: metadata, commands, scopes, and model routing.
+- `.codex/orchestration.yml`: parallel-task, worktree, dependency, and approval policy.
 - `.github/workflows/cpp-ci.yml`: GCC, Clang, tests, formatting, and sanitizers.
 - `.github/pull_request_template.md`: scope, tests, and risk checklist.
 - `docs/agent-workflow.md`: consumer-specific agent workflow.
-- `scripts/`: project-local validation wrappers when required.
+- `docs/agent-orchestration.md`: Codex execution and parallel-PR protocol.
+- `scripts/`: project-local validation and isolated-worktree helpers.
 
 ## Suggested task manifest
 

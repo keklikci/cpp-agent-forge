@@ -31,7 +31,7 @@ require_target() {
 
 init_repository() {
     target=$1
-    files='AGENTS.md .codex/project.yml .github/workflows/cpp-ci.yml .github/pull_request_template.md docs/agent-workflow.md scripts/validate-cpp.sh'
+    files='AGENTS.md .codex/project.yml .codex/orchestration.yml .github/workflows/cpp-ci.yml .github/pull_request_template.md docs/agent-workflow.md docs/agent-orchestration.md scripts/validate-cpp.sh scripts/caf-worktree.sh'
 
     mkdir -p "$target"
     cd "$target"
@@ -60,6 +60,15 @@ This repository follows the C++ Agent Forge workflow.
 - Exercise AddressSanitizer and UndefinedBehaviorSanitizer for relevant code.
 - Avoid unbounded loops in test paths and document platform-specific behavior.
 - Never persist local absolute paths, credentials, tokens, or private data.
+
+For requests containing multiple independently deliverable features, act as the
+orchestrator: plan the complete request, create one task manifest and PR per
+feature, use separate worktrees and `codex/<task-slug>` branches, run
+independent tasks in parallel up to the configured limit, and serialize tasks
+with overlapping paths. Require CI and review before asking for merge approval.
+Review agents may request changes but must not merge.
+Unless the user explicitly requests a single combined PR, do not collapse
+independent features into one implementation branch or PR.
 
 Every task must include `task_id`, `pr_title`, `brief`, `allowed_paths`,
 `model`, and `reasoning_effort`. Keep the canonical PLAN, IMPLEMENT, and REVIEW
@@ -90,6 +99,20 @@ test_command: ctest --test-dir build --output-on-failure
 format_command: clang-format --dry-run --Werror
 sanitizer_command: cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
 status: queued
+EOF
+
+    cat > .codex/orchestration.yml <<'EOF'
+version: 1
+enabled: true
+max_parallel_tasks: 4
+worktree_root: ../.caf-worktrees
+branch_prefix: codex/
+one_pr_per_task: true
+serialize_overlapping_paths: true
+require_plan_before_implementation: true
+require_ci_before_review: true
+human_approval_required_before_merge: true
+review_may_merge: false
 EOF
 
     cat > .github/workflows/cpp-ci.yml <<'EOF'
@@ -203,6 +226,71 @@ the complete diff and CI results, then reports actionable findings. Human
 approval is required before merging.
 EOF
 
+    cat > docs/agent-orchestration.md <<'EOF'
+# Agent Orchestration
+
+For a request containing multiple independently deliverable features, plan the
+full request first, then create one task manifest and PR per feature. Run
+independent tasks in separate Git worktrees and `codex/<task-slug>` branches;
+serialize tasks with overlapping paths or dependencies. The default maximum
+parallelism is four tasks, configured in `.codex/orchestration.yml`.
+
+CAF provides the policy, manifest shape, worktree helper, CI checks, PR
+template, and review protocol. Codex remains the execution host for creating
+subagents, invoking GitHub integrations, and reporting progress. Human approval
+is required before merge, and review agents must not merge.
+
+Use `scripts/caf-worktree.sh create <task-id> [base-branch]` to create an
+isolated worktree, `list` to inspect worktrees, and `remove <task-id>` to clean
+one up. The default worktree directory is `../.caf-worktrees`.
+EOF
+
+    cat > scripts/caf-worktree.sh <<'EOF'
+#!/bin/sh
+
+set -eu
+
+usage() {
+    printf '%s\n' \
+        'Usage: scripts/caf-worktree.sh create <task-id> [base-branch]' \
+        '       scripts/caf-worktree.sh list' \
+        '       scripts/caf-worktree.sh remove <task-id>'
+}
+
+repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+worktree_root=${CAF_WORKTREE_ROOT-"$repo_root/../.caf-worktrees"}
+prefix=${CAF_BRANCH_PREFIX-codex/}
+
+slugify() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9._-' '-'
+}
+
+[ "$#" -ge 1 ] || { usage >&2; exit 2; }
+case "$1" in
+    create)
+        [ "$#" -ge 2 ] && [ "$#" -le 3 ] || { usage >&2; exit 2; }
+        task_slug=$(slugify "$2")
+        base_branch=${3-main}
+        branch=${prefix}${task_slug}
+        worktree="$worktree_root/$task_slug"
+        mkdir -p "$worktree_root"
+        [ ! -e "$worktree" ] || { printf 'worktree already exists: %s\n' "$worktree" >&2; exit 1; }
+        git -C "$repo_root" worktree add -b "$branch" "$worktree" "$base_branch"
+        printf 'created task=%s branch=%s path=%s\n' "$task_slug" "$branch" "$worktree"
+        ;;
+    list) git -C "$repo_root" worktree list ;;
+    remove)
+        [ "$#" -eq 2 ] || { usage >&2; exit 2; }
+        task_slug=$(slugify "$2")
+        worktree="$worktree_root/$task_slug"
+        [ -d "$worktree" ] || { printf 'worktree not found: %s\n' "$worktree" >&2; exit 1; }
+        git -C "$repo_root" worktree remove "$worktree"
+        ;;
+    *) usage >&2; exit 2 ;;
+esac
+EOF
+    chmod +x scripts/caf-worktree.sh
+
     cat > scripts/validate-cpp.sh <<'EOF'
 #!/bin/sh
 
@@ -226,7 +314,7 @@ EOF
 
 check_repository() {
     target=$1
-    files='AGENTS.md .codex/project.yml .github/workflows/cpp-ci.yml .github/pull_request_template.md docs/agent-workflow.md scripts/validate-cpp.sh'
+    files='AGENTS.md .codex/project.yml .codex/orchestration.yml .github/workflows/cpp-ci.yml .github/pull_request_template.md docs/agent-workflow.md docs/agent-orchestration.md scripts/validate-cpp.sh scripts/caf-worktree.sh'
     failures=0
 
     [ -d "$target" ] || error "target directory does not exist: $target"
