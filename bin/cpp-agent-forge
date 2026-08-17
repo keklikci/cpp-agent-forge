@@ -117,20 +117,27 @@ jobs:
             echo "CXX=g++" >> "$GITHUB_ENV"
           fi
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_EXTENSIONS=OFF -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic"
       - name: Build
         run: cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
       - name: Format check
-        run: clang-format --dry-run --Werror $(find . -type f \( -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \))
+        run: find . -type f \( -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) -print0 | xargs -0 -r clang-format --dry-run --Werror
+      - name: Optional clang-tidy check
+        run: |
+          if command -v clang-tidy >/dev/null 2>&1; then
+            find src include tests -type f \( -name '*.cc' -o -name '*.cpp' \) -print0 | xargs -0 -r clang-tidy -- -std=c++17
+          else
+            echo 'clang-tidy unavailable; skipped'
+          fi
 
   sanitizers:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Configure with sanitizers
-        run: cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+        run: cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_EXTENSIONS=OFF -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -fsanitize=address,undefined -fno-omit-frame-pointer"
       - name: Build
         run: cmake --build build-asan --parallel
       - name: Test

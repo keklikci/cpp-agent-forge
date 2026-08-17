@@ -27,6 +27,11 @@ done
 grep 'C++17' "$fixture/consumer/AGENTS.md" >/dev/null
 grep 'gpt-5.6-terra' "$fixture/consumer/.codex/project.yml" >/dev/null
 grep 'PLAN - <initiative> - <brief>' "$fixture/consumer/docs/agent-workflow.md" >/dev/null
+grep 'CMAKE_CXX_STANDARD=17' "$fixture/consumer/.github/workflows/cpp-ci.yml" >/dev/null
+grep 'Wall -Wextra -Wpedantic' "$fixture/consumer/.github/workflows/cpp-ci.yml" >/dev/null
+grep 'clang-format --dry-run --Werror' "$fixture/consumer/.github/workflows/cpp-ci.yml" >/dev/null
+grep 'fsanitize=address,undefined' "$fixture/consumer/.github/workflows/cpp-ci.yml" >/dev/null
+grep 'ctest --test-dir' "$fixture/consumer/.github/workflows/cpp-ci.yml" >/dev/null
 
 if "$cli" init "$fixture/consumer" >"$fixture/refusal.out" 2>&1; then
     printf 'init unexpectedly overwrote an existing repository\n' >&2
