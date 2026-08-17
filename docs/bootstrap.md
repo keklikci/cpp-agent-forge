@@ -29,7 +29,7 @@ Use the same PR title and brief in the task record, first chat message, PR title
 
 ## C++ generated files
 
-The bootstrap CLI will generate:
+The bootstrap CLI generates:
 
 - `AGENTS.md`: C++ repository instructions.
 - `.codex/project.yml`: metadata, commands, scopes, and model routing.

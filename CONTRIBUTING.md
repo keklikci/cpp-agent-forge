@@ -19,4 +19,10 @@ feat(bootstrap): add consumer workflow generator
 
 ## Validation
 
-Before submitting a change, run shell syntax checks, inspect generated output, and validate that no user-specific paths or secrets are present.
+Before submitting a change:
+
+1. Run `sh -n` on changed shell scripts.
+2. Run the CLI tests and inspect generated output in a temporary fixture.
+3. Run `cpp-agent-forge check` against the fixture.
+4. Confirm no user-specific paths or secrets are present.
+5. If CMake and CTest are available, run the generated C++ validation wrapper.

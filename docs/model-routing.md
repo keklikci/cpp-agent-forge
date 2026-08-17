@@ -14,9 +14,10 @@ generated into consumer repositories by default.
 | Review | `gpt-5.6-terra` | `high` | Complete PR review with repository and GitHub context |
 | Security/high-risk review | `gpt-5.6-sol` | `high` or `xhigh` | Permissions, concurrency, CI, secrets, data loss, history changes |
 
-## Bootstrap CLI recommendation
+## Bootstrap and tooling recommendation
 
-For bootstrap CLI implementation work, use:
+For normal bootstrap CLI, tooling, documentation, and test implementation work,
+use:
 
 ```text
 Model: gpt-5.6-terra

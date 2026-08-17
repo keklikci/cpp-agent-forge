@@ -6,10 +6,10 @@ CAF is a reusable GitHub template and portable shell/CMake bootstrap kit for C++
 
 ## Bootstrap contract
 
-1. Copy or initialize the kit in a new C++ consumer repository.
+1. Run `bin/cpp-agent-forge init <target-directory>` for a C++ consumer repository.
 2. Replace placeholders in `.codex/project.yml`.
 3. Add project-specific instructions to `AGENTS.md`.
-4. Validate the generated workflow on a fixture branch.
+4. Validate the generated workflow in a fixture repository or branch.
 5. Require CI and human approval before merging.
 
 Every task must carry a PR title and brief description. The orchestrator uses them consistently in chat/session names, first-message headers, branches, PRs, commits, CI artifacts, and review sessions.
@@ -26,17 +26,18 @@ Package name: `cpp-agent-forge`. Short name: `CAF`.
 - clang-format and optional clang-tidy.
 - AddressSanitizer and UndefinedBehaviorSanitizer.
 
-The future Python kit will be a separate sibling project.
+CAF is intentionally C++-specific. Other language kits, if created, should be
+maintained as separate projects with their own conventions.
 
-## Initialize the template repository
+## Use the bootstrap CLI
+
+From this repository, run:
 
 ```sh
-git init
-git branch -M main
-git add README.md HANDOFF.md CONTRIBUTING.md docs/
-git commit -m "docs(cpp-agent-forge): define C++ orchestration kit identity"
-git remote add origin git@github.com:USERNAME/cpp-agent-forge.git
-git push -u origin main
+bin/cpp-agent-forge help
+bin/cpp-agent-forge init path/to/consumer-repository
+bin/cpp-agent-forge check path/to/consumer-repository
 ```
 
-The bootstrap CLI is added in the next phase.
+The CLI writes only to the target repository and refuses to overwrite existing
+generated files unless `CAF_FORCE=1` is set.
