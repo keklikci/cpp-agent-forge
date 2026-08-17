@@ -62,4 +62,4 @@ status: queued
 
 Review PR <number> in <owner>/<name>. PR title: <pr-title>. Brief: <brief>. Read AGENTS.md and consumer workflow docs. Inspect the complete diff, CI status, and relevant tests. Report actionable findings ordered by severity. Add inline comments for specific defects and a top-level summary. Do not modify, approve, merge, or enable auto-merge.
 
-The bootstrap CLI is introduced in Phase 2.
+The bootstrap CLI is part of the reusable bootstrap kit.

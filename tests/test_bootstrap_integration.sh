@@ -4,7 +4,7 @@ set -eu
 
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 cli=$root/bin/cpp-agent-forge
-fixture=$(mktemp -d "${TMPDIR-/tmp}/cpp-agent-forge-phase2.XXXXXX")
+fixture=$(mktemp -d "${TMPDIR-/tmp}/cpp-agent-forge-integration.XXXXXX")
 trap 'rm -rf "$fixture"' EXIT HUP INT TERM
 
 target=$fixture/consumer
@@ -65,4 +65,4 @@ grep -F 'REVIEW - PR #<number> - <pr-title>' "$target/docs/agent-workflow.md" >/
 grep -F 'model: gpt-5.6-terra' "$target/.codex/project.yml" >/dev/null
 grep -F 'reasoning_effort: medium' "$target/.codex/project.yml" >/dev/null
 
-printf '%s\n' 'Phase 2 integration tests passed.'
+printf '%s\n' 'Bootstrap integration tests passed.'
