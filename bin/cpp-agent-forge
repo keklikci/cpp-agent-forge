@@ -217,6 +217,97 @@ EOF
     printf '%s\n' '  3. Run cpp-agent-forge check .'
 }
 
+check_repository() {
+    target=$1
+    files='AGENTS.md .codex/project.yml .github/workflows/cpp-ci.yml .github/pull_request_template.md docs/agent-workflow.md scripts/validate-cpp.sh'
+    failures=0
+
+    [ -d "$target" ] || error "target directory does not exist: $target"
+    cd "$target"
+
+    for file in $files; do
+        if [ -f "$file" ]; then
+            printf 'present %s\n' "$file"
+        else
+            printf 'missing %s\n' "$file" >&2
+            failures=$((failures + 1))
+        fi
+    done
+
+    for file in $(find . -type f -name '*.sh' -not -path './.git/*' -print); do
+        if sh -n "$file" 2>/dev/null; then
+            printf 'shell syntax ok %s\n' "$file"
+        else
+            printf 'invalid shell syntax %s\n' "$file" >&2
+            failures=$((failures + 1))
+        fi
+    done
+
+    if command -v ruby >/dev/null 2>&1; then
+        for file in .codex/project.yml .github/workflows/cpp-ci.yml; do
+            if [ -f "$file" ] && ruby -e 'require "yaml"; YAML.load_file(ARGV.fetch(0))' "$file" >/dev/null 2>&1; then
+                printf 'yaml syntax ok %s\n' "$file"
+            elif [ -f "$file" ]; then
+                printf 'invalid yaml %s\n' "$file" >&2
+                failures=$((failures + 1))
+            fi
+        done
+    else
+        printf '%s\n' 'yaml parser unavailable; skipped YAML syntax validation'
+    fi
+
+    project=.codex/project.yml
+    for field in task_id pr_title brief allowed_paths model reasoning_effort; do
+        if [ ! -f "$project" ]; then
+            break
+        fi
+        if grep -Eq "^${field}:[[:space:]]*[^[:space:]]" "$project"; then
+            printf 'task field ok %s\n' "$field"
+        elif [ "$field" = allowed_paths ] && grep -Eq '^  -[[:space:]]*[^[:space:]]' "$project"; then
+            printf 'task field ok %s\n' "$field"
+        else
+            printf 'missing or empty task field %s\n' "$field" >&2
+            failures=$((failures + 1))
+        fi
+    done
+
+    if [ -f "$project" ]; then
+        for requirement in \
+            'model:[[:space:]]*gpt-5\.6-terra' \
+            'reasoning_effort:[[:space:]]*medium' \
+            'standard:[[:space:]]*c\+\+17' \
+            'cmake_minimum:.*3\.20' \
+            'configure_command:.*cmake -S' \
+            'build_command:.*cmake --build' \
+            'test_command:.*ctest' \
+            'format_command:.*clang-format' \
+            'sanitizer_command:.*fsanitize[=:]address,undefined'; do
+            if grep -Eq "^${requirement}" "$project"; then
+                :
+            else
+                printf 'project metadata missing requirement: %s\n' "$requirement" >&2
+                failures=$((failures + 1))
+            fi
+        done
+    fi
+
+    privacy_files=$(find . -type f -not -path './.git/*' -not -path './build/*' -not -path './build-*/*' -print)
+    privacy_pattern='/(Users|home|private/var|var/folders|tmp)/|[A-Za-z]:[\\/]Users[\\/]|(ghp_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|BEGIN [A-Z ]*PRIVATE KEY|sk-[A-Za-z0-9]{16,})'
+    if [ -n "$privacy_files" ] && printf '%s\n' "$privacy_files" | xargs grep -I -n -E "$privacy_pattern" >/dev/null 2>&1; then
+        printf '%s\n' 'privacy scan failed: absolute user path or likely secret detected' >&2
+        failures=$((failures + 1))
+    else
+        printf '%s\n' 'privacy scan ok'
+    fi
+
+    if [ "$failures" -eq 0 ]; then
+        printf '%s\n' 'check: OK'
+        return 0
+    fi
+    printf 'check: %s failure(s)\n' "$failures" >&2
+    return 1
+}
+
 command=${1-help}
 
 case "$command" in
@@ -230,8 +321,7 @@ case "$command" in
         if [ "$command" = init ]; then
             init_repository "$2"
         else
-            printf '%s: check is not available in this checkpoint\n' "$program" >&2
-            exit 3
+            check_repository "$2"
         fi
         ;;
     *)
